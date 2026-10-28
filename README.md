@@ -4,15 +4,12 @@ Automatically infer scraping schemas from web pages with repeated content.
 
 SchemaSniff analyzes a webpage's DOM to find repeated patterns (like product listings, article feeds, or table rows) and generates CSS selectors for extracting structured data.
 
-## Installation
+## Quick start
 
 ```bash
 bun install
-```
+bunx playwright install chromium   # browser used for page loading
 
-## Quick Start
-
-```bash
 # Analyze a page and output schema to stdout
 bun run src/index.ts https://news.ycombinator.com
 
@@ -24,7 +21,7 @@ bun link
 schemasniff https://example.com
 ```
 
-## How It Works
+## How it works
 
 1. **Load** - Opens the page with Playwright (with optional JavaScript rendering)
 2. **Detect** - Finds repeated DOM patterns by analyzing element classes
@@ -32,7 +29,7 @@ schemasniff https://example.com
 4. **Infer** - Detects field types (text, links, prices, dates, images) from content
 5. **Output** - Generates a YAML schema with CSS selectors ready for scraping
 
-### Pattern Scoring
+### Pattern scoring
 
 The tool automatically selects the best pattern using:
 
@@ -45,197 +42,7 @@ The tool automatically selects the best pattern using:
 | **Element Type** | Penalizes anchor tags (usually navigation) |
 | **Table Bonus** | Optional boost for `<tr>` patterns (with `--prefer-table`) |
 
-## CLI Options
-
-```
-Usage: schemasniff [options] <url>
-
-Arguments:
-  url                          The URL of the page to analyze
-
-Pattern Detection:
-  --min-items <n>              Minimum repeated items to detect (default: 3)
-  --depth <n>                  Maximum DOM depth to analyze (default: 10)
-  -c, --container <selector>   Manual CSS selector for item containers
-  --min-children <n>           Minimum child elements per item
-  --min-text-length <n>        Minimum text length per item
-  --prefer-table               Prioritize table-based patterns (<tr>)
-
-Filtering & Exclusion:
-  -e, --exclude <selectors>    Exclude CSS selectors (comma-separated)
-  --ignore-nav                 Auto-exclude nav, header, footer, .menu, etc.
-
-Field Options:
-  --type <types>               Field types to include (comma-separated)
-  --include-empty              Include empty fields in schema
-  --confidence <n>             Minimum confidence threshold 0-1 (default: 0.7)
-
-Browser Options:
-  --no-js                      Disable JavaScript rendering (faster)
-  --timeout <ms>               Navigation timeout (default: 30000)
-  --wait-for <selector>        Wait for selector before analyzing
-  --user-agent <string>        Custom user agent string
-  --viewport <WxH>             Viewport dimensions (e.g., 1920x1080)
-  --cookie <cookies>           Cookies to set (name=value,name2=value2)
-
-Debug & Output:
-  --list-patterns <n>          Show top N patterns with scores
-  --debug                      Show pattern scoring breakdown
-  -i, --interactive            Launch interactive TUI for refinement
-  -o, --output <file>          Output file path (default: stdout)
-  -q, --quiet                  Suppress progress messages
-  -h, --help                   Display help
-  -V, --version                Output version number
-```
-
-## Option Details
-
-### Pattern Detection
-
-#### `--min-items <n>`
-Minimum number of repeated items required to detect a pattern. Increase to filter out small repeated elements (nav, footers). Decrease for pages with fewer items.
-
-#### `--depth <n>`
-Maximum DOM depth to consider. Elements deeper than this are ignored. Default (10) works for most sites.
-
-#### `-c, --container <selector>`
-Manually specify the CSS selector for item containers. **Skips automatic pattern detection entirely.** Use when auto-detection picks the wrong elements.
-
-```bash
-schemasniff https://craigslist.org/search/sss --container ".gallery-card"
-```
-
-#### `--min-children <n>`
-Minimum number of child elements per item. Nav links typically have 0-1 children, while content cards have 3+. Use to filter out simple navigation links.
-
-```bash
-schemasniff https://example.com --min-children 3
-```
-
-#### `--min-text-length <n>`
-Minimum text length (characters) per item. Filters out elements with very little content.
-
-#### `--prefer-table`
-Prioritize table-based patterns (`<table>`, `<tr>`). Useful for sites with data tables like court records, financial data, or structured listings.
-
-```bash
-schemasniff https://data-site.com --prefer-table
-```
-
-### Filtering & Exclusion
-
-#### `-e, --exclude <selectors>`
-CSS selectors to exclude from pattern detection (comma-separated). Elements matching these selectors and their descendants are ignored.
-
-```bash
-schemasniff https://example.com --exclude "nav,header,footer,.sidebar"
-```
-
-#### `--ignore-nav`
-Automatically exclude common navigation elements. This excludes:
-- Tags: `nav`, `header`, `footer`
-- Classes: `.nav`, `.navbar`, `.navigation`, `.menu`, `.sidebar`, `.footer`, `.header`
-- Roles: `[role="navigation"]`, `[role="banner"]`, `[role="contentinfo"]`
-
-```bash
-schemasniff https://example.com --ignore-nav
-```
-
-### Field Options
-
-#### `--type <types>`
-Comma-separated list of field types to include:
-
-| Type | Description | Example |
-|------|-------------|---------|
-| `text` | Plain text content | "Product Name" |
-| `href` | Link URLs from `<a>` elements | "/products/123" |
-| `url` | Image/resource URLs | "/images/photo.jpg" |
-| `number` | Numeric values | "42", "3.14" |
-| `date` | Date strings | "2024-01-15", "January 3" |
-| `price` | Currency values | "$99.99", "£50", "€100" |
-
-#### `--confidence <n>`
-Minimum confidence threshold (0-1) for including fields. Confidence measures how consistently a field appears across sampled items. Higher = stricter (fewer fields).
-
-### Browser Options
-
-#### `--no-js`
-Disable JavaScript rendering. Uses `domcontentloaded` instead of `networkidle`. Faster for static HTML sites, but won't work for SPAs or dynamically-loaded content.
-
-#### `--timeout <ms>`
-Navigation timeout in milliseconds. Increase for slow-loading sites. Default: 30000 (30 seconds).
-
-```bash
-schemasniff https://slow-site.com --timeout 60000
-```
-
-#### `--wait-for <selector>`
-Wait for a CSS selector to appear before analyzing. Useful for SPAs or sites with dynamically-loaded content.
-
-```bash
-schemasniff https://spa-site.com --wait-for ".product-list"
-```
-
-#### `--user-agent <string>`
-Custom user agent string. Use to avoid bot detection or simulate specific browsers.
-
-```bash
-schemasniff https://example.com --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
-```
-
-#### `--viewport <WxH>`
-Viewport dimensions. Some sites render differently based on viewport size.
-
-```bash
-schemasniff https://example.com --viewport 1920x1080
-```
-
-#### `--cookie <cookies>`
-Cookies to set before navigation. Format: `name=value` or `name=value;domain=.example.com`. Multiple cookies separated by commas.
-
-```bash
-schemasniff https://example.com --cookie "session=abc123,token=xyz789"
-```
-
-### Debug & Output
-
-#### `--list-patterns <n>`
-Show top N detected patterns with their scores. Helps understand what patterns are being detected and why.
-
-```bash
-schemasniff https://example.com --list-patterns 5
-```
-
-Output:
-```
-📊 Top 5 patterns:
-
-  1. tr.athing.submission
-     Items: 30 | Depth: 9 | Score: 69.0
-     Sample: "1.AI found 12 vulnerabilities in OpenSSL (aisle.com)"
-
-  2. tr.spacer
-     Items: 30 | Depth: 9 | Score: 41.5
-     Sample: "(no text)"
-```
-
-#### `--debug`
-Show detailed pattern scoring breakdown. Useful for understanding why a pattern was selected.
-
-```bash
-schemasniff https://example.com --debug
-```
-
-Output:
-```
-🎯 Selected pattern: tr.athing.submission
-   Score: 69.0 | Items: 30
-   Breakdown: count=34.0 depth=0.0 diversity=15.0 children=20.0 table=0.0 anchor=0.0
-```
-
-#### `-q, --quiet`
-Suppress progress messages (🔍, ✅). Errors are still shown. Useful for scripting and piping output.
+The full detection pipeline is described in [How pattern detection works](#how-pattern-detection-works).
 
 ## Examples
 
@@ -342,7 +149,7 @@ schemasniff https://example.com | yq '.fields'
 schemasniff https://example.com | yq '.fields[].selector'
 ```
 
-## Output Format
+## Output format
 
 ```yaml
 schema:
@@ -369,7 +176,7 @@ fields:
     sample: £51.77
 ```
 
-### Schema Fields
+### Schema fields
 
 | Field | Description |
 |-------|-------------|
@@ -383,6 +190,198 @@ fields:
 | `fields[].type` | Detected field type |
 | `fields[].confidence` | Field confidence (0-1) |
 | `fields[].sample` | Example value from first item |
+
+## CLI options
+
+```
+Usage: schemasniff [options] <url>
+
+Arguments:
+  url                          The URL of the page to analyze
+
+Pattern Detection:
+  --min-items <n>              Minimum repeated items to detect (default: 3)
+  --depth <n>                  Maximum DOM depth to analyze (default: 10)
+  -c, --container <selector>   Manual CSS selector for item containers
+  --min-children <n>           Minimum child elements per item
+  --min-text-length <n>        Minimum text length per item
+  --prefer-table               Prioritize table-based patterns (<tr>)
+
+Filtering & Exclusion:
+  -e, --exclude <selectors>    Exclude CSS selectors (comma-separated)
+  --ignore-nav                 Auto-exclude nav, header, footer, .menu, etc.
+
+Field Options:
+  --type <types>               Field types to include (comma-separated)
+  --include-empty              Include empty fields in schema
+  --confidence <n>             Minimum confidence threshold 0-1 (default: 0.7)
+
+Browser Options:
+  --no-js                      Disable JavaScript rendering (faster)
+  --timeout <ms>               Navigation timeout (default: 30000)
+  --wait-for <selector>        Wait for selector before analyzing
+  --user-agent <string>        Custom user agent string
+  --viewport <WxH>             Viewport dimensions (e.g., 1920x1080)
+  --cookie <cookies>           Cookies to set (name=value,name2=value2)
+
+Debug & Output:
+  --list-patterns <n>          Show top N patterns with scores
+  --debug                      Show pattern scoring breakdown
+  -i, --interactive            Launch interactive TUI for refinement
+  -o, --output <file>          Output file path (default: stdout)
+  -q, --quiet                  Suppress progress messages
+  -h, --help                   Display help
+  -V, --version                Output version number
+```
+
+### Option details
+
+#### Pattern Detection
+
+##### `--min-items <n>`
+Minimum number of repeated items required to detect a pattern. Increase to filter out small repeated elements (nav, footers). Decrease for pages with fewer items.
+
+##### `--depth <n>`
+Maximum DOM depth to consider. Elements deeper than this are ignored. Default (10) works for most sites.
+
+##### `-c, --container <selector>`
+Manually specify the CSS selector for item containers. **Skips automatic pattern detection entirely.** Use when auto-detection picks the wrong elements.
+
+```bash
+schemasniff https://craigslist.org/search/sss --container ".gallery-card"
+```
+
+##### `--min-children <n>`
+Minimum number of child elements per item. Nav links typically have 0-1 children, while content cards have 3+. Use to filter out simple navigation links.
+
+```bash
+schemasniff https://example.com --min-children 3
+```
+
+##### `--min-text-length <n>`
+Minimum text length (characters) per item. Filters out elements with very little content.
+
+##### `--prefer-table`
+Prioritize table-based patterns (`<table>`, `<tr>`). Useful for sites with data tables like court records, financial data, or structured listings.
+
+```bash
+schemasniff https://data-site.com --prefer-table
+```
+
+#### Filtering & Exclusion
+
+##### `-e, --exclude <selectors>`
+CSS selectors to exclude from pattern detection (comma-separated). Elements matching these selectors and their descendants are ignored.
+
+```bash
+schemasniff https://example.com --exclude "nav,header,footer,.sidebar"
+```
+
+##### `--ignore-nav`
+Automatically exclude common navigation elements. This excludes:
+- Tags: `nav`, `header`, `footer`
+- Classes: `.nav`, `.navbar`, `.navigation`, `.menu`, `.sidebar`, `.footer`, `.header`
+- Roles: `[role="navigation"]`, `[role="banner"]`, `[role="contentinfo"]`
+
+```bash
+schemasniff https://example.com --ignore-nav
+```
+
+#### Field Options
+
+##### `--type <types>`
+Comma-separated list of field types to include:
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `text` | Plain text content | "Product Name" |
+| `href` | Link URLs from `<a>` elements | "/products/123" |
+| `url` | Image/resource URLs | "/images/photo.jpg" |
+| `number` | Numeric values | "42", "3.14" |
+| `date` | Date strings | "2024-01-15", "January 3" |
+| `price` | Currency values | "$99.99", "£50", "€100" |
+
+##### `--confidence <n>`
+Minimum confidence threshold (0-1) for including fields. Confidence measures how consistently a field appears across sampled items. Higher = stricter (fewer fields).
+
+#### Browser Options
+
+##### `--no-js`
+Disable JavaScript rendering. Uses `domcontentloaded` instead of `networkidle`. Faster for static HTML sites, but won't work for SPAs or dynamically-loaded content.
+
+##### `--timeout <ms>`
+Navigation timeout in milliseconds. Increase for slow-loading sites. Default: 30000 (30 seconds).
+
+```bash
+schemasniff https://slow-site.com --timeout 60000
+```
+
+##### `--wait-for <selector>`
+Wait for a CSS selector to appear before analyzing. Useful for SPAs or sites with dynamically-loaded content.
+
+```bash
+schemasniff https://spa-site.com --wait-for ".product-list"
+```
+
+##### `--user-agent <string>`
+Custom user agent string. Use to avoid bot detection or simulate specific browsers.
+
+```bash
+schemasniff https://example.com --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
+```
+
+##### `--viewport <WxH>`
+Viewport dimensions. Some sites render differently based on viewport size.
+
+```bash
+schemasniff https://example.com --viewport 1920x1080
+```
+
+##### `--cookie <cookies>`
+Cookies to set before navigation. Format: `name=value` or `name=value;domain=.example.com`. Multiple cookies separated by commas.
+
+```bash
+schemasniff https://example.com --cookie "session=abc123,token=xyz789"
+```
+
+#### Debug & Output
+
+##### `--list-patterns <n>`
+Show top N detected patterns with their scores. Helps understand what patterns are being detected and why.
+
+```bash
+schemasniff https://example.com --list-patterns 5
+```
+
+Output:
+```
+📊 Top 5 patterns:
+
+  1. tr.athing.submission
+     Items: 30 | Depth: 9 | Score: 69.0
+     Sample: "1.AI found 12 vulnerabilities in OpenSSL (aisle.com)"
+
+  2. tr.spacer
+     Items: 30 | Depth: 9 | Score: 41.5
+     Sample: "(no text)"
+```
+
+##### `--debug`
+Show detailed pattern scoring breakdown. Useful for understanding why a pattern was selected.
+
+```bash
+schemasniff https://example.com --debug
+```
+
+Output:
+```
+🎯 Selected pattern: tr.athing.submission
+   Score: 69.0 | Items: 30
+   Breakdown: count=34.0 depth=0.0 diversity=15.0 children=20.0 table=0.0 anchor=0.0
+```
+
+##### `-q, --quiet`
+Suppress progress messages (🔍, ✅). Errors are still shown. Useful for scripting and piping output.
 
 ## Troubleshooting
 
@@ -457,7 +456,9 @@ schemasniff https://example.com --debug
 schemasniff https://example.com --list-patterns 5 --debug
 ```
 
-## Architecture
+## Development
+
+### Source layout
 
 ```
 src/
@@ -468,10 +469,11 @@ src/
 └── utils/
     ├── constants.ts      # Configuration constants
     ├── errors.ts         # Custom error types
+    ├── index.ts          # Utility re-exports
     └── utility-classes.ts # CSS utility class filtering
 ```
 
-## How Pattern Detection Works
+### How pattern detection works
 
 1. **Tag Scanning** - Scans common container tags (`article`, `div`, `li`, `tr`, `section`, `a`)
 
@@ -497,7 +499,7 @@ src/
    - Text content (leaf nodes)
    - And infers types using regex patterns
 
-## Utility Class Filtering
+### Utility class filtering
 
 SchemaSniff automatically filters out utility-first CSS classes (Tailwind, Bootstrap) to find semantic patterns:
 
